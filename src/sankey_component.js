@@ -24,6 +24,7 @@ const api = require('og_api')
 
 var SankeyComponent = React.createClass({
 	propTypes: {
+    //Need to pass in the correct location to append to....
 		data: React.PropTypes.object.isRequired,
 		height: React.PropTypes.number.isRequired,
 		width: React.PropTypes.number.isRequired
@@ -46,20 +47,38 @@ var SankeyComponent = React.createClass({
 	  return graph
 	},
 
-	//ought to have render + updateChart methods
-  createChart() {
-
-  },
   getDataViaAPI(){
-    const data_sets = "B05A202E6E5F474190E5314AD62775C7";
+    //Need to redirect endpoint
+    
+    const data_sets = ["B05A202E6E5F474190E5314AD62775C7"];
+    const coa_id = '9E9AC6B664934C0DB3F2E433F502316D';
+    const coa_mask_id = null;
+    var mask;
     const params = {
-      coa_mask_id: report.get('coa_mask_id'),
+      coa_mask_id,
       data_sets,
-      mask: SummaryReportStore.getState().get('mask')
+      mask,
     };
-    var req = api.tapi.post('package', report.get('coa_id'), params);
-  }
-	renderChart() {
+    var req = api.tapi.post('package', coa_id, params);
+    console.log('package', coa_id, params)
+    req.end()
+      .then((res) => {
+        var pkg = res.body;
+        console.log('pkg', pkg)
+        if (!_.size(pkg.data_sets)) {
+          //SummaryReportActions.loadedPackageNoDataSets(pkg);
+        }
+        //SummaryReportActions.getPackageSuccess(pkg);
+      }).catch((err) => {
+        throw err;
+      });
+  },
+
+	//ought to have render + updateChart methods
+  destroyChart() {
+    d3.select("#chart").remove();
+  },
+	createChart() {
 		const units = "unit";
 
 		const self = this
@@ -75,7 +94,6 @@ var SankeyComponent = React.createClass({
       return str.replace(/ /g,'').replace(/\W/g, '').toLowerCase()
     }
      
-    // append the svg canvas to the page
     var svg = d3.select("#chart").append("svg")
         .attr("width", width + margin.left + margin.right)
         .attr("height", height + margin.top + margin.bottom)
@@ -123,46 +141,50 @@ var SankeyComponent = React.createClass({
 
     // add in the links
     var link = svg.append("g").selectAll(".link")
-        .data(graph.links)
-      .enter().append("path")
-        .each(function(d) {
-          defineAttributes(d)
-        })
-        .attr('class', function(d){
-          return 'link ' + getLinkIdentity(d.source.name, d.target.name)
-        })
-        .attr("d", path)
-        .style("stroke-width", function(d) { return Math.max(1, d.dy); })
-        .style('stroke', function(d){
-          return generateGradient(d)
-        })
-        .sort(function(a, b) { return b.dy - a.dy; })
-        .on('mouseover', function(d){ //Currently works going right, not left
-          console.log('link', d)
+      .data(graph.links)
+      .enter().append("path");
 
-          moveLinksToTop(d)
+    link.each(function(d) {
+        defineAttributes(d)
+      })
+      .attr('class', function(d){
+        var backwards = ''
+        if(d.target.x < d.source.x)
+          backwards = 'backwards'
+        return 'link ' + getLinkIdentity(d.source.name, d.target.name) + ' ' + backwards;
+      })
+      .attr("d", path)
+      .style("stroke-width", function(d) { return Math.max(1, d.dy); })
+      .style('stroke', function(d){
+        return generateGradient(d)
+      })
+      .sort(function(a, b) { return b.dy - a.dy; })
+      .on('mouseover', function(d){ //Currently works going right, not left
+        console.log('link', d)
 
-          //node.addSideNodes(d, 'source')
-          //node.addSideNodes2(d.target)
+        moveLinksToTop(d)
 
-          d3.selectAll('.link')
-            .style('stroke', 'gray')
-            .style('stroke-opacity', .1)
+        //node.addSideNodes(d, 'source')
+        //node.addSideNodes2(d.target)
 
-          //var colOrigin = d.source.col/2 + d.target.col/2
-          d3.select(this).style('stroke', 'cadetblue').style('stroke-opacity', .5)
+        d3.selectAll('.link')
+          .style('stroke', 'gray')
+          .style('stroke-opacity', .1)
 
-          linkage.drawLinks(d)
-          
-        })
-        .on('mouseout', function(d){
-          //revertToOriginal()
-        })
+        //var colOrigin = d.source.col/2 + d.target.col/2
+        d3.select(this).style('stroke', 'cadetblue').style('stroke-opacity', .5)
+
+        linkage.drawLinks(d)
+        
+      })
+      .on('mouseout', function(d){
+        revertToOriginal()
+      })
 
     const linkage = {}
     linkage.drawSublinksBackwards = (d) => {
       //Only if > 1 input for the node || node has no outputs
-      if(d.source.sourceLinks.length !== 1 && d.source.targetLinks.length !== 0){
+      //if(d.source.sourceLinks.length !== 1 && d.source.targetLinks.length !== 0){
         console.log('backwards', d)
 
         var totalInputWidth = d.source.dy
@@ -182,11 +204,11 @@ var SankeyComponent = React.createClass({
           
           link.source.y = link.source.y + link.dy * offset/totalInputWidth
           link.target.y = link.target.y + link.dy * offset/totalInputWidth
-          //link.dy = link.dy * widthOfSelected/totalInputWidth
+          link.dy = link.dy * widthOfSelected/totalInputWidth
 
           //link.source.y = 'temp_source_dy' in d ? d.temp_source_dy : link.source.y + link.dy * offset/totalInputWidth
           //link.target.y = 'temp_target_dy' in d ? d.temp_target_dy : link.target.y + link.dy * offset/totalInputWidth
-          link.dy = 'temp_dy' in d ? d.temp_dy : link.dy * widthOfSelected/totalInputWidth
+          //link.dy = 'temp_dy' in d ? d.temp_dy : link.dy * widthOfSelected/totalInputWidth
 
 
           linkNotClone.temp_dy = link.dy
@@ -207,7 +229,7 @@ var SankeyComponent = React.createClass({
             .sort(function(a, b) { return b.dy - a.dy; })
             .style('stroke', 'black')
         })
-      }
+      //}
     }
     linkage.drawSublinks = (d, backwards) => {
       //Only if > 1 input for the node || node has no outputs
@@ -527,7 +549,7 @@ var SankeyComponent = React.createClass({
 	componentDidMount() {
 		console.log('componentDidMount')
 		//Only render chart once has component has mounted so that div exists
-		this.renderChart()
+		this.createChart()
 	},
 
 	componentDidUpdate() {

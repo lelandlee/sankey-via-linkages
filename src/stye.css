@@ -21,3 +21,7 @@
   stroke: #000;
   stroke-opacity: .5;
 }
+.link.backwards {
+  stroke: #402;
+  stroke-dasharray: 9,1;
+}
