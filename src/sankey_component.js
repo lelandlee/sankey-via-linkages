@@ -13,6 +13,8 @@
  * HOW TO HIT API:
  * Use res.pkg -> to find the names of all the nodes that want to view
  * hit another api.... to find linkages + values
+
+ * Add side nodes via 
 */
 
 
@@ -24,7 +26,6 @@ const api = require('og_api')
 
 var SankeyComponent = React.createClass({
 	propTypes: {
-    //Need to pass in the correct location to append to....
 		data: React.PropTypes.object.isRequired,
 		height: React.PropTypes.number.isRequired,
 		width: React.PropTypes.number.isRequired
@@ -167,6 +168,7 @@ var SankeyComponent = React.createClass({
         //node.addSideNodes(d, 'source')
         //node.addSideNodes2(d.target)
 
+        d3.selectAll('.rect').style('fill', 'gray')
         d3.selectAll('.link')
           .style('stroke', 'gray')
           .style('stroke-opacity', .1)
@@ -220,6 +222,9 @@ var SankeyComponent = React.createClass({
             .style('stroke', 'gray')
             .style('stroke-opacity', .1)
 
+          d3.select('.rect.' + cleanStr(link.source.name)).style('fill', 'maroon')
+          d3.select('.rect.' + cleanStr(link.target.name)).style('fill', 'maroon')
+
           svg.append('path')
             .attr('class', function(d){
               return 'tempLink ' + getLinkIdentity(link.target.name, link.source.name, true)
@@ -233,7 +238,7 @@ var SankeyComponent = React.createClass({
     }
     linkage.drawSublinks = (d, backwards) => {
       //Only if > 1 input for the node || node has no outputs
-      if(d.target.targetLinks.length !== 1 && d.target.sourceLinks.length !== 0){
+      //if(d.target.targetLinks.length !== 1 && d.target.sourceLinks.length !== 0){
         var totalInputWidth = d.target.dy
         var widthOfSelected = d.dy
 
@@ -256,6 +261,9 @@ var SankeyComponent = React.createClass({
             .style('stroke', 'gray')
             .style('stroke-opacity', .1)
 
+          d3.select('.rect.' + cleanStr(link.source.name)).style('fill', 'maroon')
+          d3.select('.rect.' + cleanStr(link.target.name)).style('fill', 'maroon')
+
           svg.append('path')
             .attr('class', function(d){
               return 'tempLink ' + getLinkIdentity(link.source.name, link.target.name)
@@ -265,31 +273,14 @@ var SankeyComponent = React.createClass({
             .sort(function(a, b) { return b.dy - a.dy; })
             .style('stroke', 'black')
         })
-      }
+      //}
     }
     linkage.drawLinks = (d) => {
       //look for column numbering -> When items are nested
       var itemList = []
 
-      //forwards - these loops are looking for full flow, not partial
-      _.forEach(d.target.sourceLinks, function(item) {
-        var target = getLinkIdentity(d.target.name, item.target.name)
-        if(itemList.indexOf(target) === -1)
-          itemList.push(target)
-      })
-
-      //backwards
-      _.forEach(d.source.targetLinks, function(item) {
-        var source = getLinkIdentity(d.source.name, item.source.name, true)
-        if(itemList.indexOf(source) === -1)
-          itemList.push(source)
-      })
-
-      _.forEach(itemList, function(target) {
-        d3.selectAll('.link').filter('.' + target)
-          .style('stroke', 'cadetblue')
-          .style('stroke-opacity', .5)
-      })
+      d3.select('.rect.' + cleanStr(d.source.name)).style('fill', 'maroon')
+      d3.select('.rect.' + cleanStr(d.target.name)).style('fill', 'maroon')
 
       //Order of drawing is important -> things are being overridden
       linkage.drawSublinks(d)
@@ -440,12 +431,13 @@ var SankeyComponent = React.createClass({
           })
           
           //Rects
-          d3.selectAll('.rect').filter(function(l) {
+          /*d3.selectAll('.rect').filter(function(l) {
             return isRectRelated(d,l)
           }).style('fill', 'maroon')
           d3.selectAll('.rect').filter(function(l) {
             return !isRectRelated(d,l)
-          }).style('fill', 'gray')
+          }).style('fill', 'gray')*/
+          d3.selectAll('.rect').style('fill', 'gray')
 
           //links
           d3.selectAll('.link')
