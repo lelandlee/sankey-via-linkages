@@ -90,10 +90,12 @@ var SankeyComponent = React.createClass({
      
     const formatNumber = function(d){return d}
     const format = function(d) { return formatNumber(d) + " " + units; }
-    const color = d3.scale.category20b();
     const cleanStr = function(str){
       return str.replace(/ /g,'').replace(/\W/g, '').toLowerCase()
     }
+
+    const linkColor = '#cbe3f3';
+    const rectColor = '#102b3f';
      
     var svg = d3.select("#chart").append("svg")
         .attr("width", width + margin.left + margin.right)
@@ -103,13 +105,14 @@ var SankeyComponent = React.createClass({
      
     // Set the sankey diagram properties
     var sankey = d3.sankey()
-        .nodeWidth(36)
+        .nodeWidth(10)
         .nodePadding(10)
         .size([width, height]);
 
     var path = sankey.link();
      
     var graph = this.processData()
+    console.log(graph)
      
     sankey
       .nodes(graph.nodes) //Where the rects are located
@@ -126,10 +129,10 @@ var SankeyComponent = React.createClass({
       //defining other attributes as early as possible
       //check to see if item is contained within to reduce redefining
       if('color' in d.source === false){
-        d.source.color = color(d.source.name.replace(/ .*/, "")); 
+        d.source.color = rectColor; 
       }
       if('color' in d.target === false){
-        d.target.color = color(d.target.name.replace(/ .*/, ""));
+        d.target.color = rectColor;
       }
     }
     const moveLinksToTop = (d) => {
@@ -156,9 +159,7 @@ var SankeyComponent = React.createClass({
       })
       .attr("d", path)
       .style("stroke-width", function(d) { return Math.max(1, d.dy); })
-      .style('stroke', function(d){
-        return generateGradient(d)
-      })
+      .style('stroke', linkColor)
       .sort(function(a, b) { return b.dy - a.dy; })
       .on('mouseover', function(d){ //Currently works going right, not left
         console.log('link', d)
@@ -236,14 +237,14 @@ var SankeyComponent = React.createClass({
         })
       //}
     }
-    linkage.drawSublinks = (d, backwards) => {
+    linkage.drawSublinks = (d) => {
       //Only if > 1 input for the node || node has no outputs
       //if(d.target.targetLinks.length !== 1 && d.target.sourceLinks.length !== 0){
         var totalInputWidth = d.target.dy
-        var widthOfSelected = d.dy
+        var widthOfSelected = 'temp_dy' in d ? d.temp_dy : d.dy
 
-        _.forEach(d.target.sourceLinks, function(link) {
-          link = _.clone(link, true)
+        _.forEach(d.target.sourceLinks, function(linkNotClone) {
+          link = _.clone(linkNotClone, true)
 
           var offset = 0
           _.forEach(link.source.targetLinks, function(selectLinkCol) {
@@ -256,6 +257,8 @@ var SankeyComponent = React.createClass({
           link.target.y += link.dy * offset/totalInputWidth
           link.source.y += link.dy * offset/totalInputWidth
           link.dy *= widthOfSelected/totalInputWidth
+
+          linkNotClone.temp_dy = link.dy
 
           d3.select('.' + getLinkIdentity(link.source.name, link.target.name))
             .style('stroke', 'gray')
@@ -276,13 +279,11 @@ var SankeyComponent = React.createClass({
       //}
     }
     linkage.drawLinks = (d) => {
-      //look for column numbering -> When items are nested
-      var itemList = []
-
       d3.select('.rect.' + cleanStr(d.source.name)).style('fill', 'maroon')
       d3.select('.rect.' + cleanStr(d.target.name)).style('fill', 'maroon')
 
       //Order of drawing is important -> things are being overridden
+      //out to do this recursively...dig as deep as necessary
       linkage.drawSublinks(d)
        _.forEach(d.target.sourceLinks, function(item) {
         linkage.drawSublinks(item)
@@ -413,11 +414,9 @@ var SankeyComponent = React.createClass({
         })
         .attr("height", function(d) { return d.dy; })
         .attr("width", sankey.nodeWidth())
-        .style("fill", function(d) { 
-  		    return d.color
-        })
+        .style("fill", rectColor)
         .style("stroke", function(d) { 
-  		    return d3.rgb(d.color).darker(2); 
+  		    return d3.rgb(rectColor).darker(2); 
         })
         //to show the path linkage on hover...
         .on('mouseover', function(d) { 
@@ -487,40 +486,9 @@ var SankeyComponent = React.createClass({
       sankey.relayout();
       d3.selectAll('.link').attr("d", path);
     }
-    function generateGradient(d){
-      //defining the colours here
-      var start = d.source.color
-      var end = d.target.color
-
-      var s = start.split("#")[1];
-      var e = end.split("#")[1];
-
-      var gradient = svg.append("svg:defs")
-        .append("svg:linearGradient")
-          .attr("id", "gradient_" + s + "_" + e)
-          .attr("x1", "0%")
-          .attr("y1", "100%")
-          .attr("x2", "100%")
-          .attr("y2", "100%")
-          .attr("spreadMethod", "pad");
-
-      gradient.append("svg:stop")
-        .attr("offset", "0%")
-        .attr("stop-color", start)
-        .attr("stop-opacity", 1);
-
-      gradient.append("svg:stop")
-        .attr("offset", "100%")
-        .attr("stop-color", end)
-        .attr("stop-opacity", 1);
-
-      return "url(#gradient_" + s + "_" + e + ")";
-    }
     function revertToOriginal(){
-      d3.selectAll('.rect').style('fill', function(d) {return d.color})
-      d3.selectAll('.link').style('stroke', function(d) {
-        return generateGradient(d)
-      }).style('stroke-opacity', .5)
+      d3.selectAll('.rect').style('fill', rectColor)
+      d3.selectAll('.link').style('stroke', linkColor).style('stroke-opacity', .5)
       d3.selectAll('.text').attr('fill', 'black')
       d3.selectAll('.tempSideNode').remove()
       d3.selectAll('.tempLink').remove()
