@@ -79,28 +79,29 @@ var SankeyComponent = React.createClass({
 
 	//ought to have render + updateChart methods
   destroyChart() {
-    d3.selectAll('svg').remove();
+    d3.select('#chart svg').remove();
   },
 	createChart(w, h) {
 		const units = "unit";
-
 		const self = this
-
-    //var $graph = $(this.refs.graph.getDOMNode())
-    //var h = $(window).height() - $graph.offset().top;
      
     const margin = {top: 20, right: 20, bottom: 20, left: 20}
     const width = w - margin.left - margin.right
     const height = h - margin.top - margin.bottom
-     
-    const formatNumber = function(d){return d}
-    const format = function(d) { return formatNumber(d) + " " + units; }
-    const cleanStr = function(str){
-      return str.replace(/ /g,'').replace(/\W/g, '').toLowerCase()
-    }
-
     const linkColor = '#cbe3f3';
     const rectColor = '#102b3f';
+     
+    const formatNumber = (d) => {return d}
+    const format = (d) =>  { return formatNumber(d) + " " + units; }
+    const cleanStr = (str) => {
+      return str.replace(/ /g,'').replace(/\W/g, '').toLowerCase()
+    }
+    //reverse is for when going backwards in terms of linkages...
+    const getLinkIdentity = (name1, name2, reverse) => {
+      if(reverse)
+        return cleanStr(name2) + '_' + cleanStr(name1);
+      return cleanStr(name1) + '_' + cleanStr(name2);
+    }
      
     var svg = d3.select("#chart").append("svg")
         .attr("width", width + margin.left + margin.right)
@@ -120,12 +121,6 @@ var SankeyComponent = React.createClass({
       .layout(32);
     var path = sankey.link(); 
 
-    //reverse is for when going backwards in terms of linkages...
-    const getLinkIdentity = (name1, name2, reverse) => {
-      if(reverse)
-        return cleanStr(name2) + '_' + cleanStr(name1);
-      return cleanStr(name1) + '_' + cleanStr(name2);
-    }
     const defineAttributes = (d) => {
       //defining other attributes as early as possible
       //check to see if item is contained within to reduce redefining
@@ -284,7 +279,6 @@ var SankeyComponent = React.createClass({
       d3.select('.rect.' + cleanStr(d.target.name)).style('fill', 'maroon')
 
       //Order of drawing is important -> things are being overridden
-      //out to do this recursively...dig as deep as necessary
       linkage.drawSublinks(d)
        _.forEach(d.target.sourceLinks, function(item) {
         linkage.drawSublinks(item)
@@ -295,6 +289,30 @@ var SankeyComponent = React.createClass({
        _.forEach(d.source.targetLinks, function(item) {
         linkage.drawSublinksBackwards(item)
       })
+    }
+    linkage.getSankeyPath = (d) => {
+      
+      //looking for the connection via className -> rather loop intensive
+      _.forEach(d.sourceLinks, function(d){ //forwards
+        d3.select('.rect.' + cleanStr(d.source.name)).style('fill', 'maroon')
+        d3.select('.rect.' + cleanStr(d.target.name)).style('fill', 'maroon')
+        linkage.drawSublinks(d)
+         _.forEach(d.target.sourceLinks, function(item) {
+          linkage.drawSublinks(item)
+        })
+      })
+      _.forEach(d.targetLinks, function(d){//backwards
+        d3.select('.rect.' + cleanStr(d.source.name)).style('fill', 'maroon')
+        d3.select('.rect.' + cleanStr(d.target.name)).style('fill', 'maroon')
+        linkage.drawSublinksBackwards(d)
+         _.forEach(d.source.targetLinks, function(item) {
+          linkage.drawSublinksBackwards(item)
+        })
+      })
+
+      d3.selectAll('.link').filter(function(l, i) {
+        return isLinkRelated(d,l)
+      }).style('stroke', 'orange').style('stroke-opacity', .5)
     }
 
     const nodes = {}
@@ -317,6 +335,7 @@ var SankeyComponent = React.createClass({
           adjY += item.dy
         })
       }
+      console.log('adjY', adjY, d[type])
 
       svg.append('rect')
         .attr('pointer-events', 'none')
@@ -373,20 +392,7 @@ var SankeyComponent = React.createClass({
       var t = l.source == d || l.target == d
       return t
     }
-    function getSankeyPath(d){
-      
-      //looking for the connection via className -> rather loop intensive
-      _.forEach(d.sourceLinks, function(d){
-        linkage.drawLinks(d) //forwards
-      })
-      _.forEach(d.targetLinks, function(d){
-        linkage.drawLinks(d) //backwards
-      })
-
-      d3.selectAll('.link').filter(function(l, i) {
-        return isLinkRelated(d,l)
-      }).style('stroke', 'orange').style('stroke-opacity', .5)
-    }
+    
     node.append("rect")
         .attr('class', function(d) {
           return 'rect ' + cleanStr(d.name)
@@ -414,7 +420,7 @@ var SankeyComponent = React.createClass({
           d3.selectAll('.link')
 		        .style('stroke', 'gray')
 		        .style('stroke-opacity', .1)
-          getSankeyPath(d);
+          linkage.getSankeyPath(d);
 
           nodes.addSideNodes2(d) //pink highlighting
         })
@@ -478,12 +484,9 @@ var SankeyComponent = React.createClass({
     $(window).on('resize', this.updateGraphSize);
 
 		//Only render chart once has component has mounted so that div exists
-    console.log($(this.refs.graph.getDOMNode()).width());
     const width = $(this.refs.graph.getDOMNode()).width()
+    this.destroyChart()
 		this.createChart(width, this.props.height)
-
-    console.log($(this.refs.graph.getDOMNode()));
-
 	},
 
   componentWillUnmount() {
@@ -493,21 +496,12 @@ var SankeyComponent = React.createClass({
   updateGraphSize() {
     console.log('updateGraphSize')
     var width = $(this.refs.graph.getDOMNode()).width();
-    console.log(width)
     this.destroyChart()
     this.createChart(width, this.props.height)
   },
 
 	componentDidUpdate() {
 		console.log('componentDidUpdate')
-    var $graph = $(this.refs.graph.getDOMNode());
-
-    var width = $graph.width();
-    var top = $graph.offset().top;
-    var windowHeight = $(window).height();
-    var height = windowHeight - top;
-
-    console.log('$graph', $graph)
 	}
 
 });
