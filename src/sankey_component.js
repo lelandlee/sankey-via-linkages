@@ -9,18 +9,18 @@
  * Impliment recusive code for linkages
 
  * Create a rerender function...
+ * Fix how move to front works for multiple items
 
  * HOW TO HIT API:
  * Use res.pkg -> to find the names of all the nodes that want to view
  * hit another api.... to find linkages + values
 
- * Add side nodes via linkage location
 */
 
 
 const React = require('react/addons');
 const d3 = require('d3')
-require('./sankey')
+require('./vendor/sankey')
 const _ = require('lodash')
 const api = require('og_api')
 var $ = require('jquery');
@@ -50,9 +50,7 @@ var SankeyComponent = React.createClass({
 	  return graph
 	},
 
-  getDataViaAPI(){
-    //Need to redirect endpoint
-    
+  getDataViaAPI(){    
     const data_sets = ["B05A202E6E5F474190E5314AD62775C7"];
     const coa_id = '9E9AC6B664934C0DB3F2E433F502316D';
     const coa_mask_id = null;
@@ -156,6 +154,8 @@ var SankeyComponent = React.createClass({
       .attr("d", path)
       .style("stroke-width", function(d) { return Math.max(1, d.dy); })
       .style('stroke', linkColor)
+      .style('fill', 'none')
+      .style('stroke-opacity', .5)
       .sort(function(a, b) { return b.dy - a.dy; })
       .on('mouseover', function(d){ //Currently works going right, not left
         moveLinksToTop(d)
@@ -164,6 +164,7 @@ var SankeyComponent = React.createClass({
         //node.addSideNodes2(d.target)
 
         d3.selectAll('.rect').style('fill', 'gray')
+        d3.selectAll('.text').style('fill', 'white').attr('visibility', 'hidden')
         d3.selectAll('.link')
           .style('stroke', 'gray')
           .style('stroke-opacity', .1)
@@ -216,6 +217,9 @@ var SankeyComponent = React.createClass({
 
           d3.select('.rect.' + cleanStr(link.source.name)).style('fill', 'maroon')
           d3.select('.rect.' + cleanStr(link.target.name)).style('fill', 'maroon')
+          d3.select('.text.' + cleanStr(link.source.name)).attr('visibility', true).style('fill', 'black')
+          d3.select('.text.' + cleanStr(link.target.name)).attr('visibility', true).style('fill', 'black')
+          nodes.addSideNodes(link, 'source')
 
           svg.append('path')
             .attr('class', function(d){
@@ -225,6 +229,8 @@ var SankeyComponent = React.createClass({
             .style("stroke-width", Math.max(1, link.dy))
             .sort(function(a, b) { return b.dy - a.dy; })
             .style('stroke', 'black')
+            .style('fill', 'none')
+            .style('stroke-opacity', .5)
         })
       //}
     }
@@ -257,6 +263,9 @@ var SankeyComponent = React.createClass({
 
           d3.select('.rect.' + cleanStr(link.source.name)).style('fill', 'maroon')
           d3.select('.rect.' + cleanStr(link.target.name)).style('fill', 'maroon')
+          d3.select('.text.' + cleanStr(link.source.name)).attr('visibility', true).style('fill', 'black')
+          d3.select('.text.' + cleanStr(link.target.name)).attr('visibility', true).style('fill', 'black')
+          nodes.addSideNodes(link, 'target')
 
           svg.append('path')
             .attr('class', function(d){
@@ -266,12 +275,16 @@ var SankeyComponent = React.createClass({
             .style("stroke-width", Math.max(1, link.dy))
             .sort(function(a, b) { return b.dy - a.dy; })
             .style('stroke', 'black')
+            .style('fill', 'none')
+            .style('stroke-opacity', .5)
         })
       //}
     }
     linkage.drawLinks = (d) => {
       d3.select('.rect.' + cleanStr(d.source.name)).style('fill', 'maroon')
       d3.select('.rect.' + cleanStr(d.target.name)).style('fill', 'maroon')
+      d3.select('.text.' + cleanStr(d.source.name)).attr('visibility', true).style('fill', 'black')
+      d3.select('.text.' + cleanStr(d.target.name)).attr('visibility', true).style('fill', 'black')
 
       //Order of drawing is important -> things are being overridden
       linkage.drawSublinks(d)
@@ -293,6 +306,8 @@ var SankeyComponent = React.createClass({
       _.forEach(d.sourceLinks, function(d){ //forwards
         d3.select('.rect.' + cleanStr(d.source.name)).style('fill', 'maroon')
         d3.select('.rect.' + cleanStr(d.target.name)).style('fill', 'maroon')
+        d3.select('.text.' + cleanStr(d.source.name)).attr('visibility', true).style('fill', 'black')
+        d3.select('.text.' + cleanStr(d.target.name)).attr('visibility', true).style('fill', 'black')
         linkage.drawSublinks(d)
          _.forEach(d.target.sourceLinks, function(item) {
           linkage.drawSublinks(item)
@@ -301,6 +316,8 @@ var SankeyComponent = React.createClass({
       _.forEach(d.targetLinks, function(d){//backwards
         d3.select('.rect.' + cleanStr(d.source.name)).style('fill', 'maroon')
         d3.select('.rect.' + cleanStr(d.target.name)).style('fill', 'maroon')
+        d3.select('.text.' + cleanStr(d.source.name)).attr('visibility', true).style('fill', 'black')
+        d3.select('.text.' + cleanStr(d.target.name)).attr('visibility', true).style('fill', 'black')
         linkage.drawSublinksBackwards(d)
          _.forEach(d.source.targetLinks, function(item) {
           linkage.drawSublinksBackwards(item)
@@ -314,9 +331,6 @@ var SankeyComponent = React.createClass({
 
     const nodes = {}
     nodes.addSideNodes = (d, type) => {
-      var x = d[type].x
-      var y = d[type].y
-
       var adjY = 0;
       if(type === 'source'){
         /*_.forEach(d.source.sourceLinks, function(item) {
@@ -340,12 +354,14 @@ var SankeyComponent = React.createClass({
         }).ty
       }
 
+      var widthOfSelected = 'temp_dy' in d ? d.temp_dy : d.dy
+
       svg.append('rect')
         .attr('pointer-events', 'none')
         .classed('tempSideNode', true)
-        .attr('x', x)        
-        .attr('y', y + adjY)
-        .attr('height', d.dy)
+        .attr('x', d[type].x)        
+        .attr('y', d[type].y + adjY)
+        .attr('height', widthOfSelected)
         .attr('width', sankey.nodeWidth())  
         .style('fill', 'pink')
         .style("stroke", 'black')
@@ -418,6 +434,7 @@ var SankeyComponent = React.createClass({
           })
           
           d3.selectAll('.rect').style('fill', 'gray')
+          d3.selectAll('.text').style('fill', 'white').attr('visibility', 'hidden')
 
           //links
           d3.selectAll('.link')
@@ -445,12 +462,13 @@ var SankeyComponent = React.createClass({
         .attr("y", function(d) { return d.dy / 2; })
         .attr("dy", ".35em")
         .attr("text-anchor", "end")
+        .attr("pointer-events", "none")
         .attr("transform", null)
         .text(function(d) { return d.name; })
       .filter(function(d) { return d.x < width / 2; })
         .attr("x", 6 + sankey.nodeWidth())
         .attr("text-anchor", "start")
-   
+
     // the function for moving the nodes
     function dragmove(d) {
       d3.select(this).attr("transform", 
@@ -462,12 +480,13 @@ var SankeyComponent = React.createClass({
       sankey.relayout();
       d3.selectAll('.link').attr("d", path);
     }
-    function revertToOriginal(){
+
+    function revertToOriginal(){ //transitions tend to interfer with new selection...
       d3.selectAll('.rect').style('fill', rectColor)
       d3.selectAll('.link').style('stroke', linkColor).style('stroke-opacity', .5)
-      d3.selectAll('.text').attr('fill', 'black')
-      d3.selectAll('.tempSideNode').remove()
-      d3.selectAll('.tempLink').remove()
+      d3.selectAll('.text').attr('visibility', true).style('fill', 'black')
+      d3.selectAll('.tempSideNode').style('fill', rectColor).remove()
+      d3.selectAll('.tempLink').style('stroke', linkColor).style('stroke-opacity', .5).remove()
       _.forEach(d3.selectAll('.link')[0], function(link) {    
         delete link.__data__.temp_dy
         delete link.__data__.temp_source_dy
@@ -476,21 +495,25 @@ var SankeyComponent = React.createClass({
     }
 	},
 
-	render() {
-		return (
-			<div id='chart' ref="graph"></div>
-		)
-	},
+  render() {
+    return (
+      <div id='chart' ref="graph"></div>
+    )
+  },
 
-	componentDidMount() {
-		console.log('componentDidMount')
+  componentDidMount() {
+    console.log('componentDidMount')
     $(window).on('resize', this.updateGraphSize);
 
-		//Only render chart once has component has mounted so that div exists
+    //Only render chart once has component has mounted so that div exists
+    //How to make the size be based on the parent div...
+    //Currently too small...
     const width = $(this.refs.graph.getDOMNode()).width()
     this.destroyChart()
-		this.createChart(width, this.props.height)
-	},
+    this.createChart(width, this.props.height)
+
+    this.getDataViaAPI()
+  },
 
   componentWillUnmount() {
     $(window).off('resize', this.updateGraphSize);
@@ -503,9 +526,9 @@ var SankeyComponent = React.createClass({
     this.createChart(width, this.props.height)
   },
 
-	componentDidUpdate() {
-		console.log('componentDidUpdate')
-	}
+  componentDidUpdate() {
+    console.log('componentDidUpdate')
+  }
 
 });
 

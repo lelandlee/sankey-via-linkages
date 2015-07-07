@@ -3,6 +3,10 @@
   fill-opacity: .9;
   shape-rendering: crispEdges;
 }
+
+.tempSideNode {
+  shape-rendering: crispEdges;
+}
  
 .node text {
   pointer-events: none;
@@ -11,6 +15,7 @@
 }
  
 .link, .tempLink{
+
   fill: none;
   stroke-opacity: .5;
 }

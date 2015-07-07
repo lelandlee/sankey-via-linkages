@@ -1,9 +1,9 @@
 import React, { Component } from 'react';
 
 const SankeyComponent = require('./sankey_component')
-const data = require('./data_with_col')
-//const data = require('./data_ga')
-//const data = require('./data_circular')
+const data = require('./data/data_with_col')
+//const data = require('./data/data_ga')
+//const data = require('./data/data_circular')
 
 export default class App extends Component {
   render() {
