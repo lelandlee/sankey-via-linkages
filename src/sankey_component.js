@@ -14,7 +14,7 @@
  * Use res.pkg -> to find the names of all the nodes that want to view
  * hit another api.... to find linkages + values
 
- * Add side nodes via 
+ * Add side nodes via linkage location
 */
 
 
@@ -23,6 +23,8 @@ const d3 = require('d3')
 require('./sankey')
 const _ = require('lodash')
 const api = require('og_api')
+var $ = require('jquery');
+
 
 var SankeyComponent = React.createClass({
 	propTypes: {
@@ -32,8 +34,8 @@ var SankeyComponent = React.createClass({
 	},
 
 	processData() {
-		var graph = this.props.data
-		var nodeMap = {};
+		const graph = _.clone(this.props.data, true);
+		const nodeMap = {};
 	  graph.nodes.forEach(function(x) { 
 	    nodeMap[x.name] = x;
 	  });
@@ -77,16 +79,19 @@ var SankeyComponent = React.createClass({
 
 	//ought to have render + updateChart methods
   destroyChart() {
-    d3.select("#chart").remove();
+    d3.selectAll('svg').remove();
   },
-	createChart() {
+	createChart(w, h) {
 		const units = "unit";
 
 		const self = this
+
+    //var $graph = $(this.refs.graph.getDOMNode())
+    //var h = $(window).height() - $graph.offset().top;
      
     const margin = {top: 20, right: 20, bottom: 20, left: 20}
-    const width = self.props.width - margin.left - margin.right
-    const height = self.props.height - margin.top - margin.bottom
+    const width = w - margin.left - margin.right
+    const height = h - margin.top - margin.bottom
      
     const formatNumber = function(d){return d}
     const format = function(d) { return formatNumber(d) + " " + units; }
@@ -103,21 +108,17 @@ var SankeyComponent = React.createClass({
       .append("g")
         .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
      
+    var graph = this.processData()
+
     // Set the sankey diagram properties
     var sankey = d3.sankey()
-        .nodeWidth(10)
-        .nodePadding(10)
-        .size([width, height]);
-
-    var path = sankey.link();
-     
-    var graph = this.processData()
-    console.log(graph)
-     
-    sankey
+      .nodeWidth(10)
+      .nodePadding(10)
+      .size([width, height])
       .nodes(graph.nodes) //Where the rects are located
       .links(graph.links) //Thing that connects the nodes together
       .layout(32);
+    var path = sankey.link(); 
 
     //reverse is for when going backwards in terms of linkages...
     const getLinkIdentity = (name1, name2, reverse) => {
@@ -367,28 +368,6 @@ var SankeyComponent = React.createClass({
         })
         .on("drag", dragmove));
    
-    // add the rectangles for the nodes
-    function isRectRelated(d, l){
-      var t = l.name == d.name
-      t = t|| _.find(l.sourceLinks, function(el) {
-        return el.target.name == d.name
-      })
-      t = t || _.find(l.targetLinks, function(el) {
-        return el.source.name == d.name
-      })
-      /*t = t || _.find(l.targetLinks, function(el) {
-        return typeof _.find(el.source.targetLinks, function(el2) {
-          return el2.source.name == d.name
-        }) === 'object'
-      })
-      t = t || _.find(l.sourceLinks, function(el) {
-        return typeof _.find(el.target.sourceLinks, function(el2) {
-          return el2.target.name == d.name
-        }) === 'object'
-      })*/
-
-      return t
-    };
     function isLinkRelated(d, l){
       //Use to find adjacent links when hovering on a rect
       var t = l.source == d || l.target == d
@@ -429,13 +408,6 @@ var SankeyComponent = React.createClass({
             moveLinksToTop(link);
           })
           
-          //Rects
-          /*d3.selectAll('.rect').filter(function(l) {
-            return isRectRelated(d,l)
-          }).style('fill', 'maroon')
-          d3.selectAll('.rect').filter(function(l) {
-            return !isRectRelated(d,l)
-          }).style('fill', 'gray')*/
           d3.selectAll('.rect').style('fill', 'gray')
 
           //links
@@ -443,11 +415,6 @@ var SankeyComponent = React.createClass({
 		        .style('stroke', 'gray')
 		        .style('stroke-opacity', .1)
           getSankeyPath(d);
-          
-
-          d3.selectAll('.text').filter(function(l) { //do this by seaching by class...
-            return !isRectRelated(d,l)
-          }).attr('fill', 'white')
 
           nodes.addSideNodes2(d) //pink highlighting
         })
@@ -502,18 +469,45 @@ var SankeyComponent = React.createClass({
 
 	render() {
 		return (
-			<div id='chart'></div>
+			<div id='chart' ref="graph"></div>
 		)
 	},
 
 	componentDidMount() {
 		console.log('componentDidMount')
+    $(window).on('resize', this.updateGraphSize);
+
 		//Only render chart once has component has mounted so that div exists
-		this.createChart()
+    console.log($(this.refs.graph.getDOMNode()).width());
+    const width = $(this.refs.graph.getDOMNode()).width()
+		this.createChart(width, this.props.height)
+
+    console.log($(this.refs.graph.getDOMNode()));
+
 	},
+
+  componentWillUnmount() {
+    $(window).off('resize', this.updateGraphSize);
+  },
+
+  updateGraphSize() {
+    console.log('updateGraphSize')
+    var width = $(this.refs.graph.getDOMNode()).width();
+    console.log(width)
+    this.destroyChart()
+    this.createChart(width, this.props.height)
+  },
 
 	componentDidUpdate() {
 		console.log('componentDidUpdate')
+    var $graph = $(this.refs.graph.getDOMNode());
+
+    var width = $graph.width();
+    var top = $graph.offset().top;
+    var windowHeight = $(window).height();
+    var height = windowHeight - top;
+
+    console.log('$graph', $graph)
 	}
 
 });

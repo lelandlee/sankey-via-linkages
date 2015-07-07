@@ -42,6 +42,7 @@
     "react": "0.13.3",
     "og_api": "git+ssh://git@github.com:OpenGov/og_api#v0.3.2",
     "og_analytics": "git+ssh://git@github.com:OpenGov/og_analytics#v0.3.0",
-    "og_flux": "git+ssh://git@github.com:OpenGov/og_flux#v0.1.1"
+    "og_flux": "git+ssh://git@github.com:OpenGov/og_flux#v0.1.1",
+    "jquery": "~1.11.1"
   }
 }
