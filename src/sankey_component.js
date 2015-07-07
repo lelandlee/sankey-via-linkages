@@ -158,8 +158,6 @@ var SankeyComponent = React.createClass({
       .style('stroke', linkColor)
       .sort(function(a, b) { return b.dy - a.dy; })
       .on('mouseover', function(d){ //Currently works going right, not left
-        console.log('link', d)
-
         moveLinksToTop(d)
 
         //node.addSideNodes(d, 'source')
@@ -181,15 +179,12 @@ var SankeyComponent = React.createClass({
       })
 
     const linkage = {}
+    //adding sideNodes should be done when sublinks are drawn
     linkage.drawSublinksBackwards = (d) => {
       //Only if > 1 input for the node || node has no outputs
       //if(d.source.sourceLinks.length !== 1 && d.source.targetLinks.length !== 0){
-        console.log('backwards', d)
-
         var totalInputWidth = d.source.dy
         var widthOfSelected = 'temp_dy' in d ? d.temp_dy : d.dy
-        console.log('temp_dy' in d, d.temp_dy, d.dy)
-
         _.forEach(d.source.targetLinks, function(linkNotClone) { //draws each link
           link = _.clone(linkNotClone, true)
 
@@ -280,12 +275,14 @@ var SankeyComponent = React.createClass({
 
       //Order of drawing is important -> things are being overridden
       linkage.drawSublinks(d)
+      nodes.addSideNodes(d, 'target')
        _.forEach(d.target.sourceLinks, function(item) {
         linkage.drawSublinks(item)
       })
 
       //backwards
       linkage.drawSublinksBackwards(d)
+      nodes.addSideNodes(d, 'source')
        _.forEach(d.source.targetLinks, function(item) {
         linkage.drawSublinksBackwards(item)
       })
@@ -322,20 +319,26 @@ var SankeyComponent = React.createClass({
 
       var adjY = 0;
       if(type === 'source'){
-        _.forEach(d.source.sourceLinks, function(item) {
+        /*_.forEach(d.source.sourceLinks, function(item) {
           if(item.target.name === d.target.name)
             return false
           adjY += item.dy
-        })
+        })*/
+        adjY = _.find(d.source.sourceLinks, (item) => {
+          return item.target.name === d.target.name
+        }).sy
       }
       if(type === 'target'){
-        _.forEach(d.target.targetLinks, function(item) {
-          if(item.source.name === d.source.name)
+        /*_.forEach(d.target.targetLinks, function(item) {
+          if(item.source.name === d.source.name){
             return false
+          }
           adjY += item.dy
-        })
+        })*/
+        adjY = _.find(d.target.targetLinks, (item) => {
+          return item.source.name === d.source.name
+        }).ty
       }
-      console.log('adjY', adjY, d[type])
 
       svg.append('rect')
         .attr('pointer-events', 'none')
