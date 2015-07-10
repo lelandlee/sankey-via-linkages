@@ -3,18 +3,7 @@
 
  * When move to main code -> use props model to save the states????
  * Make functions -> get next node, etc
-
- * Have link highlighting go left, rather than just backwards
- * Fix rect highlighting
  * Impliment recusive code for linkages
-
- * Create a rerender function...
- * Fix how move to front works for multiple items
-
- * HOW TO HIT API:
- * Use res.pkg -> to find the names of all the nodes that want to view
- * hit another api.... to find linkages + values
-
 */
 
 
@@ -22,7 +11,6 @@ const React = require('react/addons');
 const d3 = require('d3')
 require('./vendor/sankey')
 const _ = require('lodash')
-const api = require('og_api')
 var $ = require('jquery');
 
 
