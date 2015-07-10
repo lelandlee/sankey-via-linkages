@@ -39,41 +39,29 @@ var SankeyComponent = React.createClass({
 	  graph.nodes.forEach(function(x) { 
 	    nodeMap[x.name] = x;
 	  });
+
+    const max = d3.max(graph.links, (x) => {
+      return x.value
+    })
+    const min = d3.min(graph.links, (x) => {
+      return x.value
+    })
+    console.log('scale', min, max)
+
+    var scale = d3.scale.linear()//tried using a log scale
+      .domain([min, max])
+      .range([min, max])
+
 	  graph.links = graph.links.map(function(x) {
 	    return {
 	      source: nodeMap[x.source],
 	      target: nodeMap[x.target],
-	      value: x.value
+	      value: scale(x.value)
 	    };
 	  });
 
 	  return graph
 	},
-
-  getDataViaAPI(){    
-    const data_sets = ["B05A202E6E5F474190E5314AD62775C7"];
-    const coa_id = '9E9AC6B664934C0DB3F2E433F502316D';
-    const coa_mask_id = null;
-    var mask;
-    const params = {
-      coa_mask_id,
-      data_sets,
-      mask,
-    };
-    var req = api.tapi.post('package', coa_id, params);
-    console.log('package', coa_id, params)
-    req.end()
-      .then((res) => {
-        var pkg = res.body;
-        console.log('pkg', pkg)
-        if (!_.size(pkg.data_sets)) {
-          //SummaryReportActions.loadedPackageNoDataSets(pkg);
-        }
-        //SummaryReportActions.getPackageSuccess(pkg);
-      }).catch((err) => {
-        throw err;
-      });
-  },
 
 	//ought to have render + updateChart methods
   destroyChart() {
@@ -92,7 +80,7 @@ var SankeyComponent = React.createClass({
     const formatNumber = (d) => {return d}
     const format = (d) =>  { return formatNumber(d) + " " + units; }
     const cleanStr = (str) => {
-      return str.replace(/ /g,'').replace(/\W/g, '').toLowerCase()
+      return 'a' + str.replace(/ /g,'').replace(/\W/g, '').toLowerCase()
     }
     //reverse is for when going backwards in terms of linkages...
     const getLinkIdentity = (name1, name2, reverse) => {
@@ -132,7 +120,7 @@ var SankeyComponent = React.createClass({
     const moveLinksToTop = (d) => {
       //moving non selected links to the back to prevent overlap issues
       svg.selectAll(".link").sort(function (a, b) { 
-        if (a.dy != d.dy) return -1;
+        if (d.indexOf(a.dy) === -1) return -1;
         else return 1;
       });
     }
@@ -158,7 +146,7 @@ var SankeyComponent = React.createClass({
       .style('stroke-opacity', .5)
       .sort(function(a, b) { return b.dy - a.dy; })
       .on('mouseover', function(d){ //Currently works going right, not left
-        moveLinksToTop(d)
+        moveLinksToTop([d.dy])
 
         //node.addSideNodes(d, 'source')
         //node.addSideNodes2(d.target)
@@ -177,6 +165,7 @@ var SankeyComponent = React.createClass({
       })
       .on('mouseout', function(d){
         revertToOriginal()
+        //d3.selectAll('svg').attr('pointer-events', 'none')
       })
 
     const linkage = {}
@@ -196,19 +185,22 @@ var SankeyComponent = React.createClass({
             }
             offset += selectLinkCol.dy
           }, 0)
-          
-          link.source.y = link.source.y + link.dy * offset/totalInputWidth
-          link.target.y = link.target.y + link.dy * offset/totalInputWidth
-          link.dy = link.dy * widthOfSelected/totalInputWidth
 
-          //link.source.y = 'temp_source_dy' in d ? d.temp_source_dy : link.source.y + link.dy * offset/totalInputWidth
-          //link.target.y = 'temp_target_dy' in d ? d.temp_target_dy : link.target.y + link.dy * offset/totalInputWidth
+          offset = d.sy //This only works when going backwards...
+
+          var unmutated_link_dy = _.clone(link.dy)
+          link.dy = link.dy * widthOfSelected/totalInputWidth
+          link.source.y = link.source.y + unmutated_link_dy * offset/totalInputWidth
+          link.target.y = link.target.y + unmutated_link_dy * offset/totalInputWidth
+          //d.source.y === link.target.y
+
+          //link.source.y = 'temp_source_y' in d ? d.temp_source_y : link.source.y + unmutated_link_dy * offset/totalInputWidth
+          //link.target.y = 'temp_target_y' in d ? d.temp_target_y : link.target.y + unmutated_link_dy * offset/totalInputWidth
           //link.dy = 'temp_dy' in d ? d.temp_dy : link.dy * widthOfSelected/totalInputWidth
 
-
           linkNotClone.temp_dy = link.dy
-          linkNotClone.temp_source_dy = link.source.y
-          linkNotClone.temp_target_dy = link.target.y
+          linkNotClone.temp_source_y = link.source.y
+          linkNotClone.temp_target_y = link.target.y
 
 
           d3.select('.' + getLinkIdentity(link.target.name, link.source.name, true))
@@ -425,13 +417,10 @@ var SankeyComponent = React.createClass({
         //to show the path linkage on hover...
         .on('mouseover', function(d) { 
           console.log('d___d', d)
+
           //Moving links to top
-          _.forEach(d.sourceLinks, function(link){
-            moveLinksToTop(link);
-          })
-          _.forEach(d.targetLinks, function(link){
-            moveLinksToTop(link);
-          })
+          moveLinksToTop(_.map(d.sourceLinks, (link) => { return link.dy; }))
+          moveLinksToTop(_.map(d.targetLinks, (link) => { return link.dy; }))
           
           d3.selectAll('.rect').style('fill', 'gray')
           d3.selectAll('.text').style('fill', 'white').attr('visibility', 'hidden')
@@ -489,8 +478,8 @@ var SankeyComponent = React.createClass({
       d3.selectAll('.tempLink').style('stroke', linkColor).style('stroke-opacity', .5).remove()
       _.forEach(d3.selectAll('.link')[0], function(link) {    
         delete link.__data__.temp_dy
-        delete link.__data__.temp_source_dy
-        delete link.__data__.temp_target_dy
+        delete link.__data__.temp_source_y
+        delete link.__data__.temp_target_y
       })
     }
 	},
@@ -506,13 +495,9 @@ var SankeyComponent = React.createClass({
     $(window).on('resize', this.updateGraphSize);
 
     //Only render chart once has component has mounted so that div exists
-    //How to make the size be based on the parent div...
-    //Currently too small...
     const width = $(this.refs.graph.getDOMNode()).width()
     this.destroyChart()
     this.createChart(width, this.props.height)
-
-    this.getDataViaAPI()
   },
 
   componentWillUnmount() {
@@ -528,6 +513,9 @@ var SankeyComponent = React.createClass({
 
   componentDidUpdate() {
     console.log('componentDidUpdate')
+    const width = $(this.refs.graph.getDOMNode()).width()
+    this.destroyChart()
+    this.createChart(width, this.props.height)
   }
 
 });
