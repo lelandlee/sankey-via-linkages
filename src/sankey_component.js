@@ -195,10 +195,7 @@ var SankeyComponent = React.createClass({
             .style('stroke', 'gray')
             .style('stroke-opacity', .1)
 
-          d3.select('.rect.' + cleanStr(link.source.name)).style('fill', 'maroon')
-          d3.select('.rect.' + cleanStr(link.target.name)).style('fill', 'maroon')
-          d3.select('.text.' + cleanStr(link.source.name)).attr('visibility', true).style('fill', 'black')
-          d3.select('.text.' + cleanStr(link.target.name)).attr('visibility', true).style('fill', 'black')
+          linkage.colouring(link)
           nodes.addSideNodes(link, 'source')
 
           svg.append('path')
@@ -213,6 +210,12 @@ var SankeyComponent = React.createClass({
             .style('stroke-opacity', .5)
         })
       //}
+    }
+    linkage.colouring = (link) => {
+      d3.select('.rect.' + cleanStr(link.source.name)).style('fill', 'maroon')
+      d3.select('.rect.' + cleanStr(link.target.name)).style('fill', 'maroon')
+      d3.select('.text.' + cleanStr(link.source.name)).attr('visibility', true).style('fill', 'black')
+      d3.select('.text.' + cleanStr(link.target.name)).attr('visibility', true).style('fill', 'black')
     }
     linkage.drawSublinks = (d) => {
       //Only if > 1 input for the node || node has no outputs
@@ -241,10 +244,7 @@ var SankeyComponent = React.createClass({
             .style('stroke', 'gray')
             .style('stroke-opacity', .1)
 
-          d3.select('.rect.' + cleanStr(link.source.name)).style('fill', 'maroon')
-          d3.select('.rect.' + cleanStr(link.target.name)).style('fill', 'maroon')
-          d3.select('.text.' + cleanStr(link.source.name)).attr('visibility', true).style('fill', 'black')
-          d3.select('.text.' + cleanStr(link.target.name)).attr('visibility', true).style('fill', 'black')
+          linkage.colouring(link)
           nodes.addSideNodes(link, 'target')
 
           svg.append('path')
@@ -261,10 +261,7 @@ var SankeyComponent = React.createClass({
       //}
     }
     linkage.drawLinks = (d) => {
-      d3.select('.rect.' + cleanStr(d.source.name)).style('fill', 'maroon')
-      d3.select('.rect.' + cleanStr(d.target.name)).style('fill', 'maroon')
-      d3.select('.text.' + cleanStr(d.source.name)).attr('visibility', true).style('fill', 'black')
-      d3.select('.text.' + cleanStr(d.target.name)).attr('visibility', true).style('fill', 'black')
+      linkage.colouring(d)
 
       //Order of drawing is important -> things are being overridden
       linkage.drawSublinks(d)
@@ -284,20 +281,14 @@ var SankeyComponent = React.createClass({
       
       //looking for the connection via className -> rather loop intensive
       _.forEach(d.sourceLinks, function(d){ //forwards
-        d3.select('.rect.' + cleanStr(d.source.name)).style('fill', 'maroon')
-        d3.select('.rect.' + cleanStr(d.target.name)).style('fill', 'maroon')
-        d3.select('.text.' + cleanStr(d.source.name)).attr('visibility', true).style('fill', 'black')
-        d3.select('.text.' + cleanStr(d.target.name)).attr('visibility', true).style('fill', 'black')
+        linkage.colouring(d)
         linkage.drawSublinks(d)
          _.forEach(d.target.sourceLinks, function(item) {
           linkage.drawSublinks(item)
         })
       })
       _.forEach(d.targetLinks, function(d){//backwards
-        d3.select('.rect.' + cleanStr(d.source.name)).style('fill', 'maroon')
-        d3.select('.rect.' + cleanStr(d.target.name)).style('fill', 'maroon')
-        d3.select('.text.' + cleanStr(d.source.name)).attr('visibility', true).style('fill', 'black')
-        d3.select('.text.' + cleanStr(d.target.name)).attr('visibility', true).style('fill', 'black')
+        linkage.colouring(d)
         linkage.drawSublinksBackwards(d)
          _.forEach(d.source.targetLinks, function(item) {
           linkage.drawSublinksBackwards(item)
