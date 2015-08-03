@@ -4,6 +4,8 @@
  * When move to main code -> use props model to save the states????
  * Make functions -> get next node, etc
  * Impliment recusive code for linkages
+
+ * Make sankey data linkage based
 */
 
 
@@ -144,6 +146,15 @@ var SankeyComponent = React.createClass({
         d3.selectAll('.link')
           .style('stroke', 'gray')
           .style('stroke-opacity', .1)
+        const bbox = this.getBBox()
+        const slopeDown = d.source.y < d.target.y
+
+        svg.append('circle')
+          .attr('cx', bbox.x + bbox.width / 2)
+          .attr('cy', bbox.y + bbox.height / 2)
+          .attr('fill', 'orange')
+          .attr('stroke', 'black')
+          .attr('r', 5)
 
         //var colOrigin = d.source.col/2 + d.target.col/2
         d3.select(this).style('stroke', 'cadetblue').style('stroke-opacity', .5)
