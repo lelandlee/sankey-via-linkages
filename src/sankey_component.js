@@ -18,13 +18,13 @@ var $ = require('jquery');
 
 var SankeyComponent = React.createClass({
 	propTypes: {
-		data: React.PropTypes.object.isRequired,
+		sankey: React.PropTypes.object.isRequired,
 		height: React.PropTypes.number.isRequired,
 		width: React.PropTypes.number.isRequired
 	},
 
 	processData() {
-		const graph = _.clone(this.props.data, true);
+		const graph = _.clone(this.props.sankey.data, true);
 		const nodeMap = {};
 	  graph.nodes.forEach(function(x) { 
 	    nodeMap[x.name] = x;
@@ -46,12 +46,34 @@ var SankeyComponent = React.createClass({
 	    return {
 	      source: nodeMap[x.source],
 	      target: nodeMap[x.target],
-	      value: scale(x.value)
+	      value: x.value//scale(x.value)
 	    };
 	  });
 
 	  return graph
 	},
+
+  findAdjacentLinks(startUIUD, endUIUD) {
+    const target = startUIUD + '_' + endUIUD
+    const linkages = this.props.sankey.linkages
+
+    const linksOfInterestUnFiltered = _.map(linkages, (value, linkage) => {
+      if(_.includes(linkage, (target))){
+        return linkage
+      }
+    })
+    const linksOfInterest = _.filter(linksOfInterestUnFiltered, (link) => {
+      return typeof link !== 'undefined'
+    })
+    const adjacentLinks =  _.map(linksOfInterest, (link) => {
+      const linesMinusOrigin = link.replace(new RegExp(target, "g"), '')
+      const targetNodeUIUDs = _.filter(linesMinusOrigin.split('_'), (UIUD) => UIUD !== '')
+      return _.map(targetNodeUIUDs, (UIUD) => {
+        return {link: UIUD, value: linkages[link]}
+      })
+    })
+    return _.flattenDeep(adjacentLinks)
+  },
 
 	//ought to have render + updateChart methods
   destroyChart() {
@@ -90,7 +112,7 @@ var SankeyComponent = React.createClass({
     // Set the sankey diagram properties
     var sankey = d3.sankey()
       .nodeWidth(10)
-      .nodePadding(10)
+      .nodePadding(2)
       .size([width, height])
       .nodes(graph.nodes) //Where the rects are located
       .links(graph.links) //Thing that connects the nodes together
@@ -169,77 +191,100 @@ var SankeyComponent = React.createClass({
 
     const linkage = {}
     //adding sideNodes should be done when sublinks are drawn
-    linkage.drawSublinksBackwards = (d) => {
-      //Only if > 1 input for the node || node has no outputs
-      //if(d.source.sourceLinks.length !== 1 && d.source.targetLinks.length !== 0){
-        var totalInputWidth = d.source.dy
-        var widthOfSelected = 'temp_dy' in d ? d.temp_dy : d.dy
-        _.forEach(d.source.targetLinks, function(linkNotClone) { //draws each link
+    linkage.drawSublinksBackwards = (d, node) => {
+      var totalInputWidth = d.source.dy
+      var widthOfSelected = 'temp_dy' in d ? d.temp_dy : d.dy
+      const adjacentLinks = self.findAdjacentLinks(d.source.UIUD, d.target.UIUD)
+      nodes.addSideNodes(d, 'source')
+
+      const total = _.reduce(adjacentLinks, (sum, adjacentLink) => {
+        const targetNames = _.map(d.source.targetLinks, (link) => link.source.UIUD)
+        if(_.includes(targetNames, adjacentLink.link))
+          return sum + adjacentLink.value
+        return sum
+      }, 0)
+
+      _.forEach(d.source.targetLinks, function(linkNotClone) { //draws each link
+        var target = _.find(adjacentLinks, (adjacentLink) => {
+          return linkNotClone.source.UIUD === adjacentLink.link
+        })
+
+        if(typeof target !== 'undefined'){
           link = _.clone(linkNotClone, true)
-
           var offset = 0
-          _.forEach(link.target.sourceLinks, function(selectLinkCol) {
-            if(d.target.name == selectLinkCol.target.name){
-              return false
-            }
-            offset += selectLinkCol.dy
-          }, 0)
-
           offset = d.sy //This only works when going backwards...
 
           var unmutated_link_dy = _.clone(link.dy)
-          link.dy = link.dy * widthOfSelected/totalInputWidth
+          link.dy = link.dy * target.value / link.value
           link.source.y = link.source.y + unmutated_link_dy * offset/totalInputWidth
           link.target.y = link.target.y + unmutated_link_dy * offset/totalInputWidth
-          //d.source.y === link.target.y
 
-          //link.source.y = 'temp_source_y' in d ? d.temp_source_y : link.source.y + unmutated_link_dy * offset/totalInputWidth
-          //link.target.y = 'temp_target_y' in d ? d.temp_target_y : link.target.y + unmutated_link_dy * offset/totalInputWidth
-          //link.dy = 'temp_dy' in d ? d.temp_dy : link.dy * widthOfSelected/totalInputWidth
+          //This is to find the total of linkages in for non adjacent nodes
+          var nodeTotal = 0 
+          if(typeof node !== 'undefined'){
+            _.forEach(node.targetLinks, (targetlink) => {
+              const adjacentLinks = self.findAdjacentLinks(targetlink.source.UIUD, node.UIUD)
+              var target = _.find(adjacentLinks, (adjacentLink) => {
+                return link.source.UIUD === adjacentLink.link
+              })
+              if(typeof target !== 'undefined'){
+                nodeTotal += target.value
+              }
+            })
+          }
 
-          linkNotClone.temp_dy = link.dy
-          linkNotClone.temp_source_y = link.source.y
-          linkNotClone.temp_target_y = link.target.y
-
-
-          d3.select('.' + getLinkIdentity(link.target.name, link.source.name, true))
+          d3.select('.' + getLinkIdentity(link.target.UIUD, target.link, true))
             .style('stroke', 'gray')
             .style('stroke-opacity', .1)
 
           linkage.colouring(link)
           nodes.addSideNodes(link, 'source')
 
+          const val = nodeTotal === 0 ? target.value : nodeTotal
+          const origin = typeof node !== 'undefined' ? node.value : total
+
+          d3.select('.text.' + cleanStr(link.source.UIUD))
+            .text(function(d) { return d.name + ' (' + format(val) + '/' + format(d.value) + ') - ' + (val/d.value*100).toFixed(2) + '%'; })
+          d3.select('.text.' + cleanStr(link.target.UIUD))
+            .text(function(d) { return d.name + ' (' + format(total) + '/' + format(d.value) + ') - ' + (total/d.value*100).toFixed(2) + '%'; })
+          d3.select('.text.' + cleanStr(d.target.UIUD))
+            .text(function(d) { return d.name + ' (' + format(origin) + '/' + format(d.value) + ') - ' + (origin/d.value*100).toFixed(2) + '%'; })
+
           svg.append('path')
             .attr('class', function(d){
-              return 'tempLink ' + getLinkIdentity(link.target.name, link.source.name, true)
+              return 'tempLink ' + getLinkIdentity(link.target.UIUD, target.link, true)
             })
             .attr('d', path(link))
             .style("stroke-width", Math.max(1, link.dy))
             .sort(function(a, b) { return b.dy - a.dy; })
-            .style('stroke', 'black')
+            .style('stroke', 'teal')
             .style('fill', 'none')
             .style('stroke-opacity', .5)
+        }
+      })
+    }
+    linkage.drawSublinks = (d, node) => {
+      var totalInputWidth = d.target.dy
+      var widthOfSelected = 'temp_dy' in d ? d.temp_dy : d.dy
+      const adjacentLinks = self.findAdjacentLinks(d.source.UIUD, d.target.UIUD)
+      nodes.addSideNodes(d, 'target')
+
+      const total = _.reduce(adjacentLinks, (sum, adjacentLink) => {
+        const targetNames = _.map(d.target.sourceLinks, (link) => link.target.UIUD)
+        if(_.includes(targetNames, adjacentLink.link))
+          return sum + adjacentLink.value
+        return sum
+      }, 0)
+      _.forEach(d.target.sourceLinks, function(linkNotClone) {
+        var target = _.find(adjacentLinks, (adjacentLink) => {
+          return linkNotClone.target.UIUD === adjacentLink.link
         })
-      //}
-    }
-    linkage.colouring = (link) => {
-      d3.select('.rect.' + cleanStr(link.source.name)).style('fill', 'maroon')
-      d3.select('.rect.' + cleanStr(link.target.name)).style('fill', 'maroon')
-      d3.select('.text.' + cleanStr(link.source.name)).attr('visibility', true).style('fill', 'black')
-      d3.select('.text.' + cleanStr(link.target.name)).attr('visibility', true).style('fill', 'black')
-    }
-    linkage.drawSublinks = (d) => {
-      //Only if > 1 input for the node || node has no outputs
-      //if(d.target.targetLinks.length !== 1 && d.target.sourceLinks.length !== 0){
-        var totalInputWidth = d.target.dy
-        var widthOfSelected = 'temp_dy' in d ? d.temp_dy : d.dy
 
-        _.forEach(d.target.sourceLinks, function(linkNotClone) {
+        if(typeof target !== 'undefined'){
           link = _.clone(linkNotClone, true)
-
           var offset = 0
           _.forEach(link.source.targetLinks, function(selectLinkCol) {
-            if(d.source.name == selectLinkCol.source.name){
+            if(d.source.UIUD == selectLinkCol.source.UIUD){
               return false
             }
             offset += selectLinkCol.dy
@@ -247,30 +292,60 @@ var SankeyComponent = React.createClass({
           
           link.target.y += link.dy * offset/totalInputWidth
           link.source.y += link.dy * offset/totalInputWidth
-          link.dy *= widthOfSelected/totalInputWidth
+          link.dy = link.dy * target.value / link.value;
 
-          linkNotClone.temp_dy = link.dy
+          //This is to find the total of linkages in for non adjacent nodes
+          //Issues with going forwards
+          var nodeTotal = 0 
+          if(typeof node !== 'undefined'){
+            _.forEach(node.sourceLinks, (sourcelink) => {
+              const adjacentLinks = self.findAdjacentLinks(node.UIUD, sourcelink.target.UIUD)
+              var source = _.find(adjacentLinks, (adjacentLink) => {
+                return link.target.UIUD === adjacentLink.link
+              })
+              if(typeof source !== 'undefined'){
+                nodeTotal += source.value
+              }
+            })
+          }
 
-          d3.select('.' + getLinkIdentity(link.source.name, link.target.name))
+          d3.select('.' + getLinkIdentity(link.source.UIUD, target.link))
             .style('stroke', 'gray')
             .style('stroke-opacity', .1)
 
           linkage.colouring(link)
           nodes.addSideNodes(link, 'target')
 
+          const val = nodeTotal === 0 ? target.value : nodeTotal
+          const origin = typeof node !== 'undefined' ? node.value : total
+
+          d3.select('.text.' + cleanStr(link.source.UIUD))
+            .text(function(d) { return d.name + ' (' + format(total) + '/' + format(d.value) + ') - ' + (total/d.value*100).toFixed(2) + '%'; })
+          d3.select('.text.' + cleanStr(link.target.UIUD))
+            .text(function(d) { return d.name + ' (' + format(val) + '/' + format(d.value) + ') - ' + (val/d.value*100).toFixed(2) + '%'; })
+          d3.select('.text.' + cleanStr(d.source.UIUD))
+            .text(function(d) { return d.name + ' (' + format(origin) + '/' + format(d.value) + ') - ' + (origin/d.value*100).toFixed(2) + '%'; })
+
           svg.append('path')
             .attr('class', function(d){
-              return 'tempLink ' + getLinkIdentity(link.source.name, link.target.name)
+              return 'tempLink ' + getLinkIdentity(link.source.UIUD, target.link)
             })
             .attr('d', path(link))
             .style("stroke-width", Math.max(1, link.dy))
             .sort(function(a, b) { return b.dy - a.dy; })
-            .style('stroke', 'black')
+            .style('stroke', 'teal')
             .style('fill', 'none')
             .style('stroke-opacity', .5)
-        })
-      //}
+        }
+      })
     }
+    linkage.colouring = (link) => {
+      d3.select('.rect.' + cleanStr(link.source.name)).style('fill', 'maroon')
+      d3.select('.rect.' + cleanStr(link.target.name)).style('fill', 'maroon')
+      d3.select('.text.' + cleanStr(link.source.name)).attr('visibility', true).style('fill', 'black')
+      d3.select('.text.' + cleanStr(link.target.name)).attr('visibility', true).style('fill', 'black')
+    }
+
     linkage.drawLinks = (d) => {
       linkage.colouring(d)
 
@@ -461,15 +536,16 @@ var SankeyComponent = React.createClass({
     }
 
     function revertToOriginal(){ //transitions tend to interfer with new selection...
-      d3.selectAll('.rect').style('fill', rectColor)
+      d3.selectAll('.rect').style('fill', (d) => rectColor).style('stroke', 'white').style('stroke-width',1)
       d3.selectAll('.link').style('stroke', linkColor).style('stroke-opacity', .5)
-      d3.selectAll('.text').attr('visibility', true).style('fill', 'black')
+      d3.selectAll('.text')
+        .attr('visibility', (d) => d.value/self.props.sankey.meta[1] > .01 ? true : 'hidden' )
+        .style('fill', 'black')
+        .text(function(d) { return d.name + ' (' + format(d.value) + ')'; })
       d3.selectAll('.tempSideNode').style('fill', rectColor).remove()
       d3.selectAll('.tempLink').style('stroke', linkColor).style('stroke-opacity', .5).remove()
       _.forEach(d3.selectAll('.link')[0], function(link) {    
         delete link.__data__.temp_dy
-        delete link.__data__.temp_source_y
-        delete link.__data__.temp_target_y
       })
     }
 	},

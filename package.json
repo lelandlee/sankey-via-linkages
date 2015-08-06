@@ -28,7 +28,7 @@
   },
   "homepage": "https://github.com/gaearon/react-hot-boilerplate",
   "devDependencies": {
-    "lodash": "^2.4.1",
+    "lodash": "^3.9.3",
     "d3": "3.5.5",
     "babel-core": "^5.4.7",
     "babel-eslint": "^3.1.9",
